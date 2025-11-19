@@ -1,0 +1,285 @@
+import React, { useState, useEffect } from 'react';
+import { getListeServicesSansDepense, ajouterDepense } from '../../services/depense/depenseService';
+import ConfAjoutDepense from './ConfAjoutDepense';
+
+const AjouterDepense = () => {
+  const [formData, setFormData] = useState({
+    motif: '',
+    categorie: '',
+    montant: '',
+    date: '',
+    type_paiement: '',
+    fournisseur: '',
+    id_service: '',
+  });
+
+  const [errors, setErrors] = useState({});
+  const [showModal, setShowModal] = useState(false);
+  const [pendingSubmit, setPendingSubmit] = useState(false);
+  const [services, setServices] = useState([]);
+  const [message, setMessage] = useState({ type: '', text: '' });
+
+
+  const categories = [
+    'Taxe financière', 
+    'Électricité', 
+    'Eau',
+    'Gaz', 
+    'Internet', 
+    'Maintenance',
+    'Entretien courant',
+    'Nettoyage', 
+    'Achat'];
+  const typesPaiement = ['Espèce', 'Virement', 'Versement', 'Chèque'];
+
+  useEffect(() => {
+    const fetchServices = async () => {
+      const res = await getListeServicesSansDepense();
+      console.log ("Liste des services sans dépense :", res);
+      if (res.success) {
+        setServices(res.data);
+      }
+    };
+    fetchServices();
+  }, []);
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setErrors({ ...errors, [e.target.name]: '' });
+  };
+
+const validateForm = () => {
+  const newErrors = {};
+  const montant = parseFloat(formData.montant);
+  const today = new Date().toISOString().split('T')[0];
+
+  if (!formData.motif) newErrors.motif = 'Champ requis';
+  if (!formData.categorie) newErrors.categorie = 'Champ requis';
+  if (!formData.montant) newErrors.montant = 'Champ requis';
+  else if (montant < 0 || montant > 1000000) newErrors.montant = 'Montant invalide';
+  if (!formData.date) newErrors.date = 'Champ requis';
+  else if (formData.date > today) newErrors.date = 'Date future interdite';
+
+  // Nouvelle validation date paiement >= date intervention
+  if (formData.id_service) {
+    const selectedService = services.find(s => s.id_service === formData.id_service);
+    if (selectedService && selectedService.date_intervention) {
+      // Format attendu : jj/mm/aaaa, donc on convertit en Date
+      const [day, month, year] = selectedService.date_intervention.split('/');
+      const interventionDate = new Date(`${year}-${month}-${day}`); // ISO format pour Date
+      const paiementDate = new Date(formData.date);
+
+      if (paiementDate < interventionDate) {
+        newErrors.date = `La date de paiement doit être après ou égale à la date d'intervention (${selectedService.date_intervention})`;
+      }
+    }
+  }
+
+  if (!formData.type_paiement) newErrors.type_paiement = 'Champ requis';
+  if (formData.id_service === '' || formData.id_service === undefined) {
+    newErrors.id_service = 'Champ requis';
+  }
+
+  setErrors(newErrors);
+  return Object.keys(newErrors).length === 0;
+};
+
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (validateForm()) setShowModal(true);
+  };
+
+  const handleCancel = () => {
+    setShowModal(false);
+  };
+
+  const handleConfirm = async () => {
+    setPendingSubmit(true);
+
+    const data = {
+      motif: formData.motif,
+      categorie: formData.categorie,
+      montant: parseFloat(formData.montant),
+      date: formData.date,
+      type_paiement: formData.type_paiement,
+      id_service: formData.id_service,
+    };
+
+
+    // Appeler la fonction pour ajouter la dépense
+    const response = await ajouterDepense(data);
+
+    if (response.success) {
+      setMessage({ type: 'success', text: response.message });
+      setFormData({
+        motif: '',
+        categorie: '',
+        montant: '',
+        date: '',
+        type_paiement: '',
+        fournisseur: '',
+        id_service: '',
+      });
+      const res = await getListeServicesSansDepense();
+        if (res.success) {
+          setServices(res.data);
+      }
+      setTimeout(() => {
+        setMessage({ type: '', text: '' });
+      }, 1500);
+    } else {
+      setMessage({ type: 'error', text: response.message });
+    }
+    setPendingSubmit(false);
+    setShowModal(false);
+  };
+
+  const todayDate = new Date().toISOString().split('T')[0];
+
+  return (
+    <div className="ajouter-prestataire" style={{ width: '600px', margin: '100px auto', padding: '20px', borderRadius: '10px' }}>
+      <h2 className="ajout-title">Ajouter une Dépense</h2>
+
+      {message.text && (
+        <div className={`alert ${message.type === 'success' ? 'alert-success' : 'alert-danger'}`} role="alert">
+          {message.text}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} noValidate>
+        <div className="form-row">
+          <div className="form-group">
+            <label>Motif Dépenses *</label>
+            <input
+              type="text"
+              name="motif"
+              value={formData.motif}
+              onChange={handleChange}
+              className={`form-control ${errors.motif ? 'is-invalid' : ''}`}
+            />
+            {errors.motif && <p className="error-message">{errors.motif}</p>}
+          </div>
+          <div className="form-group">
+            <label>Catégorie Dépenses *</label>
+            <select
+              name="categorie"
+              value={formData.categorie}
+              onChange={handleChange}
+              className={`form-control ${errors.categorie ? 'is-invalid' : ''}`}
+            >
+              <option value="">-- Sélectionner --</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+            {errors.categorie && <p className="error-message">{errors.categorie}</p>}
+          </div>
+        </div>
+
+        <div className="form-row">
+
+          <div className="form-group">
+            <label>Fournisseur *</label>
+            <select
+                name="id_service"
+                value={formData.id_service !== null ? String(formData.id_service) : 'autre'}
+                onChange={(e) => {
+                  const selectedValue = e.target.value;
+                  const value = selectedValue === '' || selectedValue === 'autre' ? null : Number(selectedValue);
+
+                  // Trouver le service sélectionné
+                  const selectedService = services.find((s) => s.id_service === value);
+
+                  // Si un service est trouvé, remplir aussi le montant
+                  if (selectedService) {
+                    setFormData({
+                      ...formData,
+                      id_service: value,
+                      montant: selectedService.montant || '', 
+                    });
+                  } else {
+                    setFormData({ ...formData, id_service: value, montant: '' });
+                  }
+                }}
+                className={`form-control ${errors.id_service ? 'is-invalid' : ''}`}
+              >
+
+              <option value="">-- Sélectionner --</option>
+              {services.map((s) => (
+                <option key={s.id_service} value={s.id_service}>
+                  {s.raison_sociale} : {s.nom_service} / {s.reference_facture}
+                </option>
+              ))}
+              <option value="autre">Autre ...</option>
+            </select>
+
+            {errors.id_service && <p className="error-message">{errors.id_service}</p>}
+          </div>
+
+          <div className="form-group">
+            <label>Montant Facture *</label>
+            <input
+              type="number"
+              name="montant"
+              value={formData.montant}
+              onChange={handleChange}
+              min="0"
+              max="1000000"
+              className={`form-control ${errors.montant ? 'is-invalid' : ''}`}
+            />
+            {errors.montant && <p className="error-message">{errors.montant}</p>}
+          </div>
+          
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label>Date de Paiement *</label>
+            <input
+              type="date"
+              name="date"
+              value={formData.date}
+              onChange={handleChange}
+              max={todayDate}
+              className={`form-control ${errors.date ? 'is-invalid' : ''}`}
+            />
+            {errors.date && <p className="error-message">{errors.date}</p>}
+          </div>
+          <div className="form-group">
+            <label>Type de Paiement *</label>
+            <select
+              name="type_paiement"
+              value={formData.type_paiement}
+              onChange={handleChange}
+              className={`form-control ${errors.type_paiement ? 'is-invalid' : ''}`}
+            >
+              <option value="">-- Sélectionner --</option>
+              {typesPaiement.map((type) => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
+            {errors.type_paiement && <p className="error-message">{errors.type_paiement}</p>}
+          </div>
+        </div>
+
+        <div className="button-group">
+          <button type="submit" className="btn btn-ajouter" disabled={pendingSubmit}>
+            {pendingSubmit ? 'Ajout en cours...' : 'Ajouter'}
+          </button>
+          <button type="button" className="btn btn-annuler" onClick={handleCancel}>
+            Annuler
+          </button>
+        </div>
+      </form>
+
+      <ConfAjoutDepense
+        show={showModal}
+        onCancel={handleCancel}
+        onConfirm={handleConfirm}
+      />
+    </div>
+  );
+};
+
+export default AjouterDepense;
