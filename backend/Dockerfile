@@ -8,8 +8,9 @@ RUN npm install
 COPY . .
 
 # rendre exécutable
-RUN chmod +x ./entrypoint.sh
+
 
 EXPOSE 3001
 
-CMD ["./entrypoint.sh"]
+CMD ["node", "api/index.js"]
+

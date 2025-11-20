@@ -33,7 +33,7 @@ services:
     environment:
       - JWT_SECRET=syndic_secret_key_2025
       - DB_HOST=mysql
-      - DB_PORT=3306
+      - DB_PORT=3306    # ✅ Changé de 3308 à 3306
       - DB_USER=chirinedb
       - DB_PASSWORD=chirine@123
       - DB_NAME=syndic_db

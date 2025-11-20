@@ -3,14 +3,14 @@ FROM node:18
 WORKDIR /app
 
 COPY package*.json ./
-
 RUN npm install
 
 COPY . .
-
 RUN npm run build
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+# Utilisez un serveur pour servir les fichiers statiques
+RUN npm install -g serve
+CMD ["serve", "-s", "dist", "-l", "3000"]
 
